@@ -77,18 +77,20 @@ out <- prepDocuments(myprocess$documents, myprocess$vocab, myprocess$meta,lower.
 최적 토픽갯수 확인
 
 ```{r}
-model_searchK <- searchK(out$documents, out$vocab, K = c(8:20),
-                                prevalence = ~s(year),
-                                data = out$meta, init.type="Spectral"
-                                  ,cores=detectCores()-1)
-saveRDS(model_searchK,'model_searchK.rds')
+# 오래걸림(리눅스/맥 환경에서만 멀티프로세싱 가능)
+# model_searchK <- searchK(out$documents, out$vocab, K = c(8:20),
+#                                 prevalence = ~s(year),
+#                                 data = out$meta, init.type="Spectral"
+#                                   ,cores=detectCores()-1)
+# saveRDS(model_searchK,'model_searchK.rds')
 ```
 
 ```{r}
-plot(model_searchK)
+# plot(model_searchK)
 ```
 
 ```{r}
+model_searchK <- readRDS('model_searchK.rds')
 model_searchK # 9 or 12 (semantic coherence 기준)
 ```
 
