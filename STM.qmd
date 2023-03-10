@@ -1,0 +1,218 @@
+---
+title: "STM"
+---
+
+# STM
+
+라이브러리 로드
+
+```{r}
+library(tidyverse)
+library(stm)
+library(stminsights)
+library(parallel)
+library(tidytext)
+library(tidylo)
+```
+
+### 데이터 전처리
+
+데이터 로드
+
+```{r}
+df <- read_csv('./TSSCI/TSSCI_Sociology.csv')
+glimpse(df) # glimpse 활용해서 데이터 살펴보기
+```
+
+데이터 기술 통계량 확인
+
+```{r}
+summary(df)
+```
+
+2004년부터 게재된 논문 활용
+
+```{r}
+df <- df %>% filter(year>=2004)
+df
+
+# 날짜순 정렬(오름차순)
+df <- df %>% arrange(year)
+```
+
+### 토크나이징
+
+https://cran.r-project.org/web/packages/spacyr/vignettes/using_spacyr.html
+
+불용어
+
+```{r}
+custom_stopwords <- c(
+'article','study','isbn','press','research','book','pp','eds','chapter','vol','acknowledgements','acknowledgments','paper','bibliography', 'appendix', 'preface', 'references', 'introduction', 'index', 'notes', 'conclusion', 'review','http','et','al','doi',"edited", "volume", "chapters", "editor","editors"
+)
+```
+
+```{r}
+myprocess <- textProcessor(df$abstarct, metadata = df,wordLengths = c(2,Inf), lowercase = T, removenumbers = T, removepunctuation = T, removestopwords = T, stem=T, customstopwords = custom_stopwords)
+```
+
+```{r}
+myprocess
+```
+
+삭제된 단어수 확인
+
+```{r}
+length(myprocess$docs.removed)
+```
+
+```{r}
+# N개 이상의 문서에서 등장한 단어만 사용(lower.thresh)
+out <- prepDocuments(myprocess$documents, myprocess$vocab, myprocess$meta,lower.thresh = 10)
+```
+
+### 모델링
+
+최적 토픽갯수 확인
+
+```{r}
+model_searchK <- searchK(out$documents, out$vocab, K = c(8:20),
+                                prevalence = ~s(year),
+                                data = out$meta, init.type="Spectral"
+                                  ,cores=detectCores()-1)
+saveRDS(model_searchK,'model_searchK.rds')
+```
+
+```{r}
+plot(model_searchK)
+```
+
+```{r}
+model_searchK # 9 or 12 (semantic coherence 기준)
+```
+
+##### 실제 모델링
+
+```{r}
+stm_model <- stm(out$documents, out$vocab, K=9,
+              prevalence= ~s(year),
+              data=out$meta, init.type="Spectral",seed=2023,
+              verbose = F)
+saveRDS(stm_model,'stm_model.rds')
+```
+
+```{r}
+summary(stm_model)
+```
+
+```{r}
+plot(stm_model,type='summary',labeltype = 'frex',n=10)
+```
+
+주제별 단어 분포\
+참고 : https://bookdown.org/ahn_media/bookdown-demo/anal3topic.html
+
+```{r}
+td_beta <- stm_model %>% tidy(matrix = 'beta') 
+
+td_beta %>% 
+  group_by(topic) %>% 
+  slice_max(beta, n = 7) %>% 
+  ungroup() %>% 
+  mutate(topic = str_c("주제", topic)) %>% 
+  
+  ggplot(aes(x = beta, 
+             y = reorder(term, beta),
+             fill = topic)) +
+  geom_col(show.legend = F) +
+  facet_wrap(~topic, scales = "free") +
+  labs(x = expression("단어 확률분포: "~beta), y = NULL,
+       title = "주제별 단어 확률 분포",
+       subtitle = "각 주제별로 다른 단어들로 군집") +
+  theme(plot.title = element_text(size = 20))
+```
+
+주제별 문서 분포
+
+```{r}
+td_gamma <- stm_model %>% tidy(matrix = "gamma") 
+td_gamma %>% glimpse()
+```
+
+```{r}
+td_gamma %>% 
+  mutate(max = max(gamma),
+         min = min(gamma),
+         median = median(gamma))
+```
+
+```{r}
+td_gamma %>% 
+  ggplot(aes(x = gamma, fill = as.factor(topic))) +
+  geom_histogram(bins = 100, show.legend = F) +
+  facet_wrap(~topic) + 
+  labs(title = "주제별 문서 확률 분포",
+       y = "문서(기사)의 수", x = expression("문서 확률분포: "~(gamma))) +
+  theme(plot.title = element_text(size = 20))
+```
+
+##### 모델 효과 추정
+
+https://bookdown.org/ahn_media/bookdown-demo/anal4topic.html#%EC%A3%BC%EC%A0%9C-%EB%AA%85%EB%AA%85%EA%B3%BC-%EA%B3%B5%EB%B3%80%EC%9D%B8-%EC%A3%BC%EC%A0%9C%EB%AA%A8%ED%98%95
+
+```{r}
+m1_K <- stm_model$settings$dim$K
+stm_effect_model <-  estimateEffect(1:m1_K ~s(year),
+                                 stm_model, meta = out$meta, uncertainty = "Global")
+saveRDS(stm_effect_model,'stm_effect_model.rds')
+```
+
+```{r}
+summary(stm_effect_model, topics= 1:m1_K)
+```
+
+```{r}
+# 시계열 시각화(모든 토픽)
+plot.estimateEffect(stm_effect_model,model=stm, covariate = "year", 
+                    topics = c(1:m1_K), method = "continuous")
+```
+
+```{r}
+#### 시간에 따른 토픽 비율 변화 (토픽별로)
+stm_label<- labelTopics(stm_model, n = 10)
+# stm_custom_label <- c('접종순서','거리두기 단계','국내 감염 상황','생활/문화/교육','관련연구/기술',
+#                                       '지원정책','관련주','백신 승인','미국 대선','경제 전망','정부/청와대',
+#                                       '해외 감염 상황','접종후속대책','변이 바이러스','국제협력','증상/전파','백신/치료제 개발','부작용')
+
+par(mfrow=c(3,3))
+j <- 1
+for (i in c(1:m1_K))
+{
+  plot(stm_effect_model, "year", method = "continuous", topics = i, printlegend = F,
+  # main = stm_custom_label[j], xaxt = "n")
+  #main = paste(paste0('T', i,':'),paste(stm_custom_label[i], collapse = ", "),sep=' '),
+  #xaxt ="n")
+  
+  # 토픽 이름대신 keyword로 표현하고 싶으면 아래 main 활용 
+  main =  paste('topic', i,paste(stm_label$frex[i,1:4], collapse = ", "),sep=' '))
+  
+  yearseq <- seq(from=as.Date('2004-01-01'), to=as.Date('2021-12-31'),by='year')
+yearnames <- year(yearseq)
+axis(1,at=as.numeric(yearseq) - min(as.numeric(yearseq)),labels=yearnames)
+  
+  j <- j+1
+
+}
+```
+
+```{r}
+# 토픽 네트워크
+# plot(topicCorr(stm_model),vlabels =stm_custom_label, vertex.label.cex = 0.55)
+plot(topicCorr(stm_model), vertex.label.cex = 0.55)
+```
+
+stminsights
+
+```{r}
+run_stminsights()
+```
