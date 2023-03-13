@@ -21,8 +21,37 @@ library(tidylo)
 데이터 로드
 
 ```{r}
-df <- read_csv('./TSSCI/TSSCI_Sociology.csv')
-glimpse(df) # glimpse 활용해서 데이터 살펴보기
+tssci <- read_csv('./TSSCI_Sociology.csv')
+kci <- read_csv('./230313_kci_sociology.csv')
+```
+
+KCI와 TSSCI 데이터 합치기(rbind)
+
+```{r}
+# 필요한 컬럼만 선택
+tssci <- tssci %>% select(year,abstract)
+```
+
+```{r}
+# index 컬럼 추가
+tssci$index <- 'tssci'
+kci$index <- 'kci'
+```
+
+```{r}
+df <- bind_rows(kci,tssci)
+```
+
+```{r}
+# 2004년부터 게재된 논문 활용
+df <- df %>% filter(year>=2004)
+df
+
+# 날짜순 정렬(오름차순)
+df <- df %>% arrange(year)
+
+# index 명목 변수화
+df$index <- as.factor(df$index)
 ```
 
 데이터 기술 통계량 확인
@@ -31,14 +60,8 @@ glimpse(df) # glimpse 활용해서 데이터 살펴보기
 summary(df)
 ```
 
-2004년부터 게재된 논문 활용
-
 ```{r}
-df <- df %>% filter(year>=2004)
-df
-
-# 날짜순 정렬(오름차순)
-df <- df %>% arrange(year)
+glimpse(df) # glimpse 활용해서 데이터 살펴보기
 ```
 
 ### 토크나이징
@@ -54,7 +77,7 @@ custom_stopwords <- c(
 ```
 
 ```{r}
-myprocess <- textProcessor(df$abstarct, metadata = df,wordLengths = c(2,Inf), lowercase = T, removenumbers = T, removepunctuation = T, removestopwords = T, stem=T, customstopwords = custom_stopwords)
+myprocess <- textProcessor(df$abstract, metadata = df,wordLengths = c(2,Inf), lowercase = T, removenumbers = T, removepunctuation = T, removestopwords = T, stem=T, customstopwords = custom_stopwords)
 ```
 
 ```{r}
@@ -69,7 +92,7 @@ length(myprocess$docs.removed)
 
 ```{r}
 # N개 이상의 문서에서 등장한 단어만 사용(lower.thresh)
-out <- prepDocuments(myprocess$documents, myprocess$vocab, myprocess$meta,lower.thresh = 10)
+out <- prepDocuments(myprocess$documents, myprocess$vocab, myprocess$meta,lower.thresh = 50)
 ```
 
 ### 모델링
@@ -78,27 +101,27 @@ out <- prepDocuments(myprocess$documents, myprocess$vocab, myprocess$meta,lower.
 
 ```{r}
 # 오래걸림(리눅스/맥 환경에서만 멀티프로세싱 가능)
-# model_searchK <- searchK(out$documents, out$vocab, K = c(8:20),
-#                                 prevalence = ~s(year),
-#                                 data = out$meta, init.type="Spectral"
-#                                   ,cores=detectCores()-1)
-# saveRDS(model_searchK,'model_searchK.rds')
+model_searchK <- searchK(out$documents, out$vocab, K = c(8:20),
+                                prevalence = ~s(year) + index,
+                                data = out$meta, init.type="Spectral"
+                                  ,cores=detectCores()-1)
+saveRDS(model_searchK,'model_searchK.rds')
 ```
 
 ```{r}
-# plot(model_searchK)
+plot(model_searchK)
 ```
 
 ```{r}
 model_searchK <- readRDS('model_searchK.rds')
-model_searchK # 9 or 12 (semantic coherence 기준)
+model_searchK # 9 (semantic coherence 기준)
 ```
 
 ##### 실제 모델링
 
 ```{r}
 stm_model <- stm(out$documents, out$vocab, K=9,
-              prevalence= ~s(year),
+              prevalence= ~s(year) + index,
               data=out$meta, init.type="Spectral",seed=2023,
               verbose = F)
 saveRDS(stm_model,'stm_model.rds')
@@ -165,13 +188,24 @@ https://bookdown.org/ahn_media/bookdown-demo/anal4topic.html#%EC%A3%BC%EC%A0%9C-
 
 ```{r}
 m1_K <- stm_model$settings$dim$K
-stm_effect_model <-  estimateEffect(1:m1_K ~s(year),
+stm_effect_model <-  estimateEffect(1:m1_K ~s(year)+index,
                                  stm_model, meta = out$meta, uncertainty = "Global")
 saveRDS(stm_effect_model,'stm_effect_model.rds')
 ```
 
 ```{r}
 summary(stm_effect_model, topics= 1:m1_K)
+```
+
+```{r}
+# 명목변수 효과 시각화
+plot.estimateEffect(stm_effect_model, covariate = "index", 
+                    topics = c(1:m1_K), method = "difference",
+                    model = stm_model, # to show labels alongside
+                    cov.value1 = "kci", cov.value2 = "tssci",
+                    xlab = "TSSCI <------------> KCI", xlim = c(-.4, .4),
+                    labeltype = "frex", n = 5, 
+                    width = 100,  verbose.labels = F)
 ```
 
 ```{r}
