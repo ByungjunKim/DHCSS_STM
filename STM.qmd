@@ -14,6 +14,8 @@ library(stminsights)
 library(parallel)
 library(tidytext)
 library(tidylo)
+library(stringr)
+library(vroom)
 ```
 
 ### 데이터 전처리
@@ -21,31 +23,43 @@ library(tidylo)
 데이터 로드
 
 ```{r}
-tssci <- read_csv('./TSSCI_Sociology.csv')
-kci <- read_csv('./230313_kci_sociology.csv')
+tssci <- vroom('./TSSCI_Sociology.csv')
+# kci <- vroom('./230313_kci_sociology.csv', delim = ',')
+kci_ssci <- vroom('./230313_kci_ssci_sociology.csv')
 ```
 
 KCI와 TSSCI 데이터 합치기(rbind)
 
 ```{r}
+# text 컬럼 생성 = title + abstract
+tssci$text <- str_c(tssci$title,' ',tssci$abstract)
+```
+
+```{r}
 # 필요한 컬럼만 선택
-tssci <- tssci %>% select(year,abstract)
+tssci <- tssci %>% select(year,text)
 ```
 
 ```{r}
-# index 컬럼 추가
+# country 컬럼 추가
 tssci$index <- 'tssci'
-kci$index <- 'kci'
+# kci$index <- 'kci'
 ```
 
 ```{r}
-df <- bind_rows(kci,tssci)
+# 컬럼이름 통일
+kci_ssci <- kci_ssci %>% rename(year=pub_year)
+kci_ssci <- kci_ssci %>% rename(index=country)
 ```
 
 ```{r}
-# 2004년부터 게재된 논문 활용
+df <- bind_rows(kci_ssci,tssci)
+```
+
+```{r}
+# 2004~2021 게재된 논문 활용
 df <- df %>% filter(year>=2004)
-df
+df <- df %>% filter(year<=2021)
 
 # 날짜순 정렬(오름차순)
 df <- df %>% arrange(year)
