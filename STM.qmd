@@ -63,19 +63,33 @@ df <- df %>% filter(year<=2021)
 
 # 날짜순 정렬(오름차순)
 df <- df %>% arrange(year)
+```
 
-# index 명목 변수화
-df$index <- as.factor(df$index)
+모델링전 2개씩 짝지어서 df 생성
+
+```{r}
+df_ssci_kci <- df %>% filter(index %in% c('ssci','kci'))
+df_ssci_tssci <- df %>% filter(index %in% c('ssci','tssci'))
+```
+
+```{r}
+# index 명목변수화
+df_ssci_kci$index <- as.factor(df_ssci_kci$index)
+df_ssci_tssci$index <- as.factor(df_ssci_tssci$index)
+```
+
+```{r}
+summary(df_ssci_kci)
+```
+
+```{r}
+summary(df_ssci_tssci)
 ```
 
 데이터 기술 통계량 확인
 
 ```{r}
 summary(df)
-```
-
-```{r}
-glimpse(df) # glimpse 활용해서 데이터 살펴보기
 ```
 
 ### 토크나이징
