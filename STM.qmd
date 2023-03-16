@@ -78,18 +78,14 @@ df_ssci_kci$index <- as.factor(df_ssci_kci$index)
 df_ssci_tssci$index <- as.factor(df_ssci_tssci$index)
 ```
 
+데이터 기술 통계량 확인
+
 ```{r}
 summary(df_ssci_kci)
 ```
 
 ```{r}
 summary(df_ssci_tssci)
-```
-
-데이터 기술 통계량 확인
-
-```{r}
-summary(df)
 ```
 
 ### 토크나이징
