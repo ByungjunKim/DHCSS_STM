@@ -100,8 +100,10 @@ custom_stopwords <- c(
 )
 ```
 
+df_ssci_kci
+
 ```{r}
-myprocess <- textProcessor(df$abstract, metadata = df,wordLengths = c(2,Inf), lowercase = T, removenumbers = T, removepunctuation = T, removestopwords = T, stem=T, customstopwords = custom_stopwords)
+myprocess <- textProcessor(df_ssci_kci$text, metadata = df_ssci_kci,wordLengths = c(2,Inf), lowercase = T, removenumbers = T, removepunctuation = T, removestopwords = T, stem=T, customstopwords = custom_stopwords)
 ```
 
 ```{r}
