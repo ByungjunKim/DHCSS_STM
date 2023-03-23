@@ -149,7 +149,7 @@ https://juliasilge.com/blog/evaluating-stm/
 ```{r}
 model_searchK$results %>%
   select(K, exclus, semcoh) %>%
-  filter(K %in% c(8:30)) %>%
+  filter(K %in% c(8:30)) %>% #토픽 범위
   unnest(cols = c(K, exclus, semcoh)) %>%
   mutate(K = as.factor(K),KL=paste0('T',as.character(K))) %>% 
   ggplot(aes(semcoh, exclus,label=KL)) +
