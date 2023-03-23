@@ -16,6 +16,7 @@ library(tidytext)
 library(tidylo)
 library(stringr)
 library(vroom)
+library(ggplot2)
 ```
 
 ### 데이터 전처리
@@ -141,6 +142,23 @@ plot(model_searchK)
 ```{r}
 model_searchK <- readRDS('model_searchK.rds')
 model_searchK # 9 (semantic coherence 기준)
+```
+
+https://juliasilge.com/blog/evaluating-stm/
+
+```{r}
+model_searchK$results %>%
+  select(K, exclus, semcoh) %>%
+  filter(K %in% c(8:30)) %>%
+  unnest(cols = c(K, exclus, semcoh)) %>%
+  mutate(K = as.factor(K),KL=paste0('T',as.character(K))) %>% 
+  ggplot(aes(semcoh, exclus,label=KL)) +
+  geom_point(size = 1, alpha = 0.7) +
+  geom_text(check_overlap = T)+
+  labs(x = "Semantic coherence",
+       y = "Exclusivity",
+       title = "Comparing exclusivity and semantic coherence",
+       subtitle = "Models with fewer topics have higher semantic coherence for more topics, but lower exclusivity")
 ```
 
 ##### 실제 모델링
@@ -278,4 +296,21 @@ stminsights
 
 ```{r}
 run_stminsights()
+```
+
+```{r}
+df_gamma <- read_csv('./df_gamma.csv')
+df_gamma$index <- as.factor(df_gamma$index)
+```
+
+```{r}
+summary(df_gamma %>% filter(index=='ssci'))
+```
+
+```{r}
+boxplot(topic1~index,data=df_gamma)
+```
+
+```{r}
+boxplot(.~index,data=df_gamma)
 ```
